@@ -1,0 +1,33 @@
+# Python virtual environments
+.venv/
+venv/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Development backups
+*.before*
+*.bak
+*.tmp
+
+# IDE settings
+.vscode/
+.idea/
+
+# Windows-generated files
+Thumbs.db
+Desktop.ini
+
+# Packaged build artifacts
+dist/
+build/
+*.spec

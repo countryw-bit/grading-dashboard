@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Oracle Diagnostics</h1>
+  <p class="muted">This page does not display or test any Oracle username or password.</p>
+  {% if runtime.initialization_error %}
+  <div class="error"><strong>Oracle Client initialization failed</strong><br>{{ runtime.initialization_error }}</div>
+  {% endif %}
+  <table>
+    <tbody>
+      <tr><th>Application environment</th><td>{{ environment }}</td></tr>
+      <tr><th>Python version</th><td>{{ runtime.python_version }}</td></tr>
+      <tr><th>Python architecture</th><td>{{ runtime.python_architecture }}</td></tr>
+      <tr><th>Platform</th><td>{{ runtime.platform }}</td></tr>
+      <tr><th>python-oracledb version</th><td>{{ runtime.driver_version }}</td></tr>
+      <tr><th>Oracle driver mode</th><td><strong>{{ runtime.driver_mode }}</strong></td></tr>
+      <tr><th>Oracle Client directory</th><td>{{ runtime.client_dir }}</td></tr>
+      <tr><th>Client directory exists</th><td>{{ runtime.client_dir_exists }}</td></tr>
+      <tr><th>oci.dll exists</th><td>{{ runtime.oci_exists }}</td></tr>
+      <tr><th>Oracle Client version</th><td>{{ runtime.client_version }}</td></tr>
+      <tr><th>Database host</th><td>{{ runtime.host }}</td></tr>
+      <tr><th>Database port</th><td>{{ runtime.port }}</td></tr>
+      <tr><th>SID</th><td>{{ runtime.sid or "—" }}</td></tr>
+      <tr><th>Service name</th><td>{{ runtime.service_name or "—" }}</td></tr>
+      <tr><th>Schema</th><td>{{ runtime.schema }}</td></tr>
+      <tr><th>Connection target</th><td>{{ runtime.dsn_preview }}</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:18px;"><a href="/login">Return to sign in</a></p>
+</div>
+{% endblock %}

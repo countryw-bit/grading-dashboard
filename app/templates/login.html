@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:540px;margin:70px auto;">
+  <h1>Sign in to {{ environment }}</h1>
+  <p class="muted">Use your Oracle username and password. The password is kept only in this local server process.</p>
+  {% if runtime.initialization_error %}
+  <div class="error"><strong>Oracle Client startup problem:</strong><br>{{ runtime.initialization_error }}</div>
+  {% endif %}
+  {% if message %}<div class="error">{{ message }}</div>{% endif %}
+  <div class="card" style="background:#f7f8fa;padding:12px;">
+    <strong>Connection configuration</strong><br>
+    Driver mode: {{ runtime.driver_mode }}<br>
+    Target: {{ runtime.dsn_preview }}<br>
+    Client version: {{ runtime.client_version }}<br>
+    <a href="/debug">View full diagnostics</a>
+  </div>
+  <form method="post" action="/login">
+    <div style="margin-bottom:14px;">
+      <label for="username">Oracle username</label>
+      <input id="username" name="username" autocomplete="username" required style="width:100%;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:18px;">
+      <label for="password">Oracle password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required style="width:100%;box-sizing:border-box;">
+    </div>
+    <button type="submit" style="width:100%;">Connect to {{ environment }}</button>
+  </form>
+</div>
+{% endblock %}
