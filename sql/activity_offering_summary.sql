@@ -18,6 +18,13 @@ selected_atps AS (
     WHERE a.cd = p.selected_term
        OR a.cd LIKE p.term_prefix || '%'
 ),
+selected_parent_atp AS (
+    SELECT
+        a.id
+    FROM {{SCHEMA}}.ksen_atp a
+    CROSS JOIN term_parameters p
+    WHERE a.cd = p.selected_term
+),
 term_rosters AS (
     SELECT
         r.id AS roster_id,
@@ -26,6 +33,7 @@ term_rosters AS (
         r.roster_type,
         r.roster_state,
         r.due_dt,
+        r.has_grad_seniors_ind,
         a.cd AS subterm_code,
         a.name AS subterm_name
     FROM {{SCHEMA}}.ksen_roster r
@@ -45,10 +53,21 @@ roster_counts AS (
         COUNT(DISTINCT rr.id) AS roster_size,
         COUNT(
             DISTINCT CASE
-                WHEN res.roster_r_state =
-                     'kuali.grading.roster.result.state.submitted'
-                 AND (res.eff_dt IS NULL OR res.eff_dt <= SYSTIMESTAMP)
-                 AND (res.exp_dt IS NULL OR res.exp_dt > SYSTIMESTAMP)
+                WHEN tr.roster_state =
+                     'kuali.grading.roster.state.submitted'
+                THEN rr.id
+                WHEN tr.roster_state =
+                     'kuali.grading.roster.state.partial.submitted'
+                 AND res.r_value_id IS NOT NULL
+                 AND (
+                         res.roster_r_state IS NULL
+                      OR res.roster_r_state <>
+                         'kuali.grading.roster.result.state.superseded'
+                 )
+                 AND (res.eff_dt IS NULL OR
+                      res.eff_dt <= SYSTIMESTAMP)
+                 AND (res.exp_dt IS NULL OR
+                      res.exp_dt > SYSTIMESTAMP)
                 THEN rr.id
             END
         ) AS graded_count
@@ -62,6 +81,71 @@ roster_counts AS (
     LEFT JOIN {{SCHEMA}}.ksen_roster_r res
       ON res.roster_row_id = rr.id
     GROUP BY rr.roster_id
+),
+expected_graduate_students AS (
+    SELECT DISTINCT
+        rr.roster_id,
+        rr.id AS roster_row_id,
+        tr.roster_state
+    FROM term_rosters tr
+    JOIN {{SCHEMA}}.ksen_roster_row rr
+      ON rr.roster_id = tr.roster_id
+     AND rr.roster_row_state =
+         'kuali.grading.roster.row.state.active'
+     AND (rr.eff_dt IS NULL OR rr.eff_dt <= SYSTIMESTAMP)
+     AND (rr.exp_dt IS NULL OR rr.exp_dt > SYSTIMESTAMP)
+    JOIN {{SCHEMA}}.ksen_course_reg_reg reg
+      ON reg.id = rr.ref_id
+    WHERE EXISTS (
+        SELECT 1
+        FROM {{SCHEMA}}.ksen_prog_status ps
+        WHERE ps.pers_id = reg.pers_id
+          AND (
+                 ps.prog_status_state =
+                     'kuali.programenrollment.programstatus.state.active'
+              OR (
+                     ps.prog_status_state =
+                         'kuali.programenrollment.programstatus.state.eligible'
+                 AND UPPER(ps.prog_status_type) LIKE
+                     '%GRADUATE.DISCIPLINE%'
+              )
+          )
+          AND (ps.eff_dt IS NULL OR ps.eff_dt <= SYSTIMESTAMP)
+          AND (ps.exp_dt IS NULL OR ps.exp_dt > SYSTIMESTAMP)
+          AND ps.exped_compltn_term_id IN (
+              SELECT spa.id
+              FROM selected_parent_atp spa
+          )
+    )
+),
+expected_graduate_counts AS (
+    SELECT
+        egs.roster_id,
+        COUNT(DISTINCT egs.roster_row_id)
+            AS expected_graduating_student_count,
+        COUNT(
+            DISTINCT CASE
+                WHEN egs.roster_state =
+                     'kuali.grading.roster.state.submitted'
+                THEN egs.roster_row_id
+                WHEN egs.roster_state =
+                     'kuali.grading.roster.state.partial.submitted'
+                 AND res.id IS NOT NULL
+                THEN egs.roster_row_id
+            END
+        ) AS expected_graduating_graded_count
+    FROM expected_graduate_students egs
+    LEFT JOIN {{SCHEMA}}.ksen_roster_r res
+      ON res.roster_row_id = egs.roster_row_id
+     AND res.r_value_id IS NOT NULL
+     AND (
+            res.roster_r_state IS NULL
+         OR res.roster_r_state <>
+            'kuali.grading.roster.result.state.superseded'
+     )
+     AND (res.eff_dt IS NULL OR res.eff_dt <= SYSTIMESTAMP)
+     AND (res.exp_dt IS NULL OR res.exp_dt > SYSTIMESTAMP)
+    GROUP BY egs.roster_id
 ),
 preferred_person_name AS (
     SELECT
@@ -188,6 +272,7 @@ SELECT
     tr.roster_type,
     tr.roster_state,
     tr.due_dt,
+    tr.has_grad_seniors_ind,
     ri.instructor_ids AS grader_ids,
     ri.instructor_names,
     ri.instructor_emails,
@@ -195,6 +280,25 @@ SELECT
     NVL(ri.instructors_missing_email, 0) AS instructors_missing_email,
     NVL(rc.roster_size, 0) AS roster_size,
     NVL(rc.graded_count, 0) AS graded_count,
+    NVL(
+        egc.expected_graduating_student_count,
+        0
+    ) AS expected_graduating_student_count,
+    NVL(
+        egc.expected_graduating_graded_count,
+        0
+    ) AS expected_graduating_graded_count,
+    'CURRENT_ACTIVE_OR_ELIGIBLE_GRAD_DISCIPLINE_STATUS'
+        AS expected_graduating_count_source,
+    CASE
+        WHEN NVL(tr.has_grad_seniors_ind, 0) = 1
+         AND NVL(
+                 egc.expected_graduating_student_count,
+                 0
+             ) = 0
+        THEN 'Y'
+        ELSE 'N'
+    END AS expected_graduating_discrepancy_ind,
     CASE
         WHEN tr.due_dt < SYSTIMESTAMP THEN 'Y'
         ELSE 'N'
@@ -220,6 +324,8 @@ SELECT
 FROM term_rosters tr
 LEFT JOIN roster_counts rc
   ON rc.roster_id = tr.roster_id
+LEFT JOIN expected_graduate_counts egc
+  ON egc.roster_id = tr.roster_id
 LEFT JOIN roster_instructors ri
   ON ri.roster_id = tr.roster_id
 ORDER BY

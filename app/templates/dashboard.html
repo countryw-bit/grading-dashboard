@@ -45,7 +45,7 @@
     <div class="toolbar">
       <input id="global-search" class="search" type="search" placeholder="Search course, instructor, email, ID, roster ID, section ID, or subterm">
       <select id="status-filter"><option value="">All statuses</option><option value="SUBMITTED">Submitted</option><option value="PARTIAL">In progress</option><option value="NOT_STARTED">Not started</option></select>
-      <select id="problem-filter"><option value="">All records</option><option value="problems">Problems only</option><option value="duplicate-roster">Duplicate roster</option><option value="duplicate-student">Duplicate student</option><option value="overdue">Overdue only</option><option value="zero">Zero-student rosters</option><option value="missing-grader">Missing instructor</option><option value="missing-email">Missing instructor email</option></select>
+      <select id="problem-filter"><option value="">All records</option><option value="problems">Problems only</option><option value="duplicate-roster">Duplicate roster</option><option value="duplicate-student">Duplicate student</option><option value="overdue">Overdue only</option><option value="zero">Zero-student rosters</option><option value="missing-grader">Missing instructor</option><option value="missing-email">Missing instructor email</option><option value="expected-grad-discrepancy">Expected-graduate discrepancy</option></select>
       <button type="button" id="clear-filters" class="button-secondary">Clear filters</button>
       <button type="button" id="download-csv">Download visible CSV</button>
     </div>
@@ -56,6 +56,7 @@
       <th><button class="sort-button" data-sort="instructor_emails">Email</button><input class="column-filter" data-field="instructor_emails" placeholder="Filter"></th>
       <th><button class="sort-button" data-sort="roster_size">Roster size</button><input class="column-filter" data-field="roster_size" placeholder="Filter"></th>
       <th><button class="sort-button" data-sort="graded_count">Graded</button><input class="column-filter" data-field="graded_count" placeholder="Filter"></th>
+      <th title="Students whose current active status or eligible graduate-discipline status has an expected-completion term matching the selected term. Shows graded / expected."><button class="sort-button" data-sort="expected_graduating_student_count">Expected Graduates</button><input class="column-filter" data-field="expected_graduating_display" placeholder="Filter"></th>
       <th><button class="sort-button" data-sort="overall_status">Status</button><input class="column-filter" data-field="overall_status" placeholder="Filter"></th>
       <th><button class="sort-button" data-sort="due_dt">Due date</button><input class="column-filter" data-field="due_dt" placeholder="Filter"></th>
       <th>Problems<input class="column-filter" data-field="problem_text" placeholder="Filter"></th>
@@ -70,6 +71,7 @@
     <div class="health-item"><span>Rosters with zero students</span><strong id="health-zero">0</strong></div>
     <div class="health-item"><span>Rosters without instructors</span><strong id="health-missing-graders">0</strong></div>
     <div class="health-item"><span>Rosters with missing instructor email</span><strong id="health-missing-emails">0</strong></div>
+    <div class="health-item"><span>Expected-graduate source discrepancies</span><strong id="health-expected-grad-discrepancies">0</strong></div>
     <div class="health-item"><span>Unique sections</span><strong id="health-unique-sections">0</strong></div>
   </div></section>
 

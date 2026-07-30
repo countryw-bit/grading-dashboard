@@ -15,8 +15,14 @@
     if (number(row.roster_size) === 0) problems.push("0 students");
     if (number(row.instructor_count) === 0) problems.push("No instructor");
     if (number(row.instructors_missing_email) > 0) problems.push(`${row.instructors_missing_email} instructor email unavailable`);
+    if (row.expected_graduating_discrepancy_ind === "Y") problems.push("Expected-graduate discrepancy");
     if (row.is_overdue === "Y" && row.overall_status !== "SUBMITTED") problems.push("Overdue");
-    return { ...row, problem_text: problems.join("; "), has_problem: problems.length > 0 };
+    return {
+      ...row,
+      expected_graduating_display: `${number(row.expected_graduating_graded_count)} / ${number(row.expected_graduating_student_count)}`,
+      problem_text: problems.join("; "),
+      has_problem: problems.length > 0
+    };
   }
   state.rows = state.rows.map(enrich);
 
@@ -24,7 +30,7 @@
   function statusClass(status) { return status === "SUBMITTED" ? "status-submitted" : status === "PARTIAL" ? "status-partial" : "status-not-started"; }
   function compare(a, b, field) {
     const av = a[field], bv = b[field];
-    if (["roster_size","graded_count","duplicate_roster_count","duplicate_student_count","instructor_count","instructors_missing_email"].includes(field)) return number(av) - number(bv);
+    if (["roster_size","graded_count","expected_graduating_student_count","expected_graduating_graded_count","duplicate_roster_count","duplicate_student_count","instructor_count","instructors_missing_email"].includes(field)) return number(av) - number(bv);
     return String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true, sensitivity: "base" });
   }
 
@@ -45,10 +51,12 @@
       if (problem === "zero" && number(row.roster_size) !== 0) return false;
       if (problem === "missing-grader" && number(row.instructor_count) !== 0) return false;
       if (problem === "missing-email" && number(row.instructors_missing_email) === 0) return false;
+      if (problem === "expected-grad-discrepancy" && row.expected_graduating_discrepancy_ind !== "Y") return false;
       if (global) {
         const haystack = normalize([
           row.course_name,row.subterm_name,row.subterm_code,row.instructor_names,row.instructor_emails,
-          row.grader_ids,row.roster_id,row.activity_offering_id,row.roster_type,row.problem_text
+          row.grader_ids,row.roster_id,row.activity_offering_id,row.roster_type,row.problem_text,
+          row.expected_graduating_display,row.expected_graduating_count_source
         ].join(" "));
         if (!haystack.includes(global)) return false;
       }
@@ -70,11 +78,12 @@
       <td>${esc(row.instructor_emails || "Email unavailable")}</td>
       <td>${number(row.roster_size)}</td>
       <td>${number(row.graded_count)}</td>
+      <td title="Graded / expected graduates">${esc(row.expected_graduating_display)}</td>
       <td><span class="status ${statusClass(row.overall_status)}">${statusLabel(row.overall_status)}</span></td>
       <td>${esc(row.due_dt || "—")}</td>
       <td>${issuePills(row)}</td>
       <td><button type="button" class="button-secondary detail-toggle" data-roster-id="${esc(row.roster_id)}">${expanded ? "Close" : "Open"}</button></td>
-    </tr>${expanded ? `<tr class="detail-row"><td colspan="10"><div class="detail-grid">
+    </tr>${expanded ? `<tr class="detail-row"><td colspan="11"><div class="detail-grid">
       <div><strong>Instructor ID(s)</strong><div class="technical">${esc(row.grader_ids || "Not assigned")}</div></div>
       <div><strong>Instructor count</strong><div>${number(row.instructor_count)}</div></div>
       <div><strong>Missing instructor emails</strong><div>${number(row.instructors_missing_email)}</div></div>
@@ -83,6 +92,10 @@
       <div><strong>Roster type</strong><div class="technical">${esc(row.roster_type)}</div></div>
       <div><strong>Raw status</strong><div class="technical">${esc(row.roster_state)}</div></div>
       <div><strong>Completion</strong><div>${number(row.graded_count)} of ${number(row.roster_size)}</div></div>
+      <div><strong>Expected graduates graded</strong><div>${number(row.expected_graduating_graded_count)} of ${number(row.expected_graduating_student_count)}</div></div>
+      <div><strong>Expected-graduate source</strong><div>Current active or eligible graduate-discipline program-status expected-completion term</div></div>
+      <div><strong>Roster graduate flag</strong><div>${number(row.has_grad_seniors_ind) ? "Yes" : "No"}</div></div>
+      <div><strong>Source discrepancy</strong><div>${row.expected_graduating_discrepancy_ind === "Y" ? "Yes — roster flag is set but the calculated count is zero" : "No"}</div></div>
       <div><strong>Subterm code</strong><div>${esc(row.subterm_code)}</div></div>
     </div></td></tr>` : ""}`;
   }
@@ -99,10 +112,11 @@
     const zero = rows.filter(r => number(r.roster_size) === 0).length;
     const missingGraders = rows.filter(r => number(r.instructor_count) === 0).length;
     const missingEmails = rows.filter(r => number(r.instructors_missing_email) > 0).length;
+    const expectedGradDiscrepancies = rows.filter(r => r.expected_graduating_discrepancy_ind === "Y").length;
     const rate = rows.length ? Math.round(submitted / rows.length * 100) : 0;
     const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
     set("metric-rosters", rows.length); set("metric-unique-sections", `${uniqueSections} unique sections`); set("metric-submitted", submitted); set("metric-submitted-rate", `${rate}% of visible rosters`); set("metric-partial", partial); set("metric-not-started", notStarted); set("metric-duplicate-rosters", duplicateRosters); set("metric-duplicate-students", duplicateStudents);
-    set("health-duplicate-rosters", duplicateRosters); set("health-duplicate-students", duplicateStudents); set("health-overdue", overdue); set("health-zero", zero); set("health-missing-graders", missingGraders); set("health-missing-emails", missingEmails); set("health-unique-sections", uniqueSections);
+    set("health-duplicate-rosters", duplicateRosters); set("health-duplicate-students", duplicateStudents); set("health-overdue", overdue); set("health-zero", zero); set("health-missing-graders", missingGraders); set("health-missing-emails", missingEmails); set("health-expected-grad-discrepancies", expectedGradDiscrepancies); set("health-unique-sections", uniqueSections);
     set("completion-label", `${submitted} of ${rows.length} rosters submitted (${rate}%)`);
     document.getElementById("completion-bar").style.width = `${rate}%`;
     document.querySelector(".progress-track").setAttribute("aria-valuenow", String(rate));
@@ -111,14 +125,14 @@
 
   function render() {
     filterRows();
-    tbody.innerHTML = state.filtered.length ? state.filtered.map(rowMarkup).join("") : '<tr><td colspan="10" class="empty-state">No rosters match the current filters.</td></tr>';
+    tbody.innerHTML = state.filtered.length ? state.filtered.map(rowMarkup).join("") : '<tr><td colspan="11" class="empty-state">No rosters match the current filters.</td></tr>';
     updateMetrics();
   }
 
   function csvEscape(value) { const s = String(value ?? "").replace(/\s+/g," ").trim(); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; }
   function downloadCsv() {
-    const headers = ["Course / roster","Subterm","Subterm code","Instructor names","Instructor emails","Instructor IDs","Instructor count","Missing instructor emails","Roster size","Graded","Status","Due date","Problems","Roster ID","Activity offering ID","Roster type"];
-    const rows = [headers, ...state.filtered.map(r => [r.course_name,r.subterm_name,r.subterm_code,r.instructor_names,r.instructor_emails,r.grader_ids,r.instructor_count,r.instructors_missing_email,r.roster_size,r.graded_count,statusLabel(r.overall_status),r.due_dt,r.problem_text,r.roster_id,r.activity_offering_id,r.roster_type])];
+    const headers = ["Course / roster","Subterm","Subterm code","Instructor names","Instructor emails","Instructor IDs","Instructor count","Missing instructor emails","Roster size","Graded","Expected graduates","Expected graduates graded","Expected-graduate source","Roster graduate flag","Expected-graduate discrepancy","Status","Due date","Problems","Roster ID","Activity offering ID","Roster type"];
+    const rows = [headers, ...state.filtered.map(r => [r.course_name,r.subterm_name,r.subterm_code,r.instructor_names,r.instructor_emails,r.grader_ids,r.instructor_count,r.instructors_missing_email,r.roster_size,r.graded_count,r.expected_graduating_student_count,r.expected_graduating_graded_count,r.expected_graduating_count_source,r.has_grad_seniors_ind,r.expected_graduating_discrepancy_ind,statusLabel(r.overall_status),r.due_dt,r.problem_text,r.roster_id,r.activity_offering_id,r.roster_type])];
     const blob = new Blob([rows.map(r => r.map(csvEscape).join(",")).join("\r\n")], {type:"text/csv;charset=utf-8"});
     const link = document.createElement("a");
     const subterm = document.getElementById("subterm_code").value;
