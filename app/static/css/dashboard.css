@@ -44,6 +44,16 @@
 .issue-pill { display: inline-block; padding: .2rem .5rem; margin: .1rem; border: 1px solid currentColor; border-radius: 999px; color: var(--danger); font-size: .78rem; background: #fff8f7; }
 .detail-row td { background: #faf6f1; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: .75rem; margin: .75rem 0; }
+.roster-student-section { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--bc-border); }
+.roster-student-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .65rem; }
+.roster-student-heading h3 { margin: 0; }
+.roster-student-table-wrap { max-height: 420px; background: #fff; }
+.roster-student-table { min-width: 720px; }
+.roster-student-table th { position: sticky; top: 0; z-index: 1; }
+.roster-loading { color: var(--bc-maroon); font-weight: 700; }
+.student-yes { color: var(--success); font-weight: 800; }
+.student-grade { color: var(--bc-maroon-dark); font-weight: 800; }
+.student-no { color: var(--muted); }
 .technical { font-family: Consolas, "Courier New", monospace; font-size: .8rem; overflow-wrap: anywhere; }
 .health-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 1rem; }
 .health-item { border: 1px solid var(--bc-border); border-top: 3px solid var(--bc-gold); border-radius: 8px; padding: 1rem; background: #fff; }

@@ -2,7 +2,16 @@
   "use strict";
 
   const rawData = JSON.parse(document.getElementById("roster-data")?.textContent || "[]");
-  const state = { rows: rawData, filtered: [], sortField: "subterm_name", sortDirection: "asc", expanded: new Set() };
+  const state = {
+    rows: rawData,
+    filtered: [],
+    sortField: "subterm_name",
+    sortDirection: "asc",
+    expanded: new Set(),
+    rosterStudents: new Map(),
+    rosterStudentErrors: new Map(),
+    rosterStudentLoading: new Set()
+  };
   const tbody = document.getElementById("sections-body");
   const esc = value => String(value ?? "").replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]));
   const normalize = value => String(value ?? "").toLowerCase().trim();
@@ -52,6 +61,10 @@
       if (problem === "missing-grader" && number(row.instructor_count) !== 0) return false;
       if (problem === "missing-email" && number(row.instructors_missing_email) === 0) return false;
       if (problem === "expected-grad-discrepancy" && row.expected_graduating_discrepancy_ind !== "Y") return false;
+      if (problem === "expected-grad-ungraded" && !(
+        number(row.expected_graduating_student_count) >
+        number(row.expected_graduating_graded_count)
+      )) return false;
       if (global) {
         const haystack = normalize([
           row.course_name,row.subterm_name,row.subterm_code,row.instructor_names,row.instructor_emails,
@@ -67,6 +80,66 @@
   function issuePills(row) {
     if (!row.has_problem) return '<span class="muted">None found</span>';
     return row.problem_text.split("; ").map(text => `<span class="issue-pill">${esc(text)}</span>`).join("");
+  }
+
+  function yesNo(value) { return value === "Y" ? "Yes" : "No"; }
+
+  function rosterStudentMarkup(row) {
+    const rosterId = row.roster_id;
+    if (state.rosterStudentLoading.has(rosterId)) {
+      return '<p class="roster-loading">Loading roster…</p>';
+    }
+    if (state.rosterStudentErrors.has(rosterId)) {
+      return `<div class="error">Roster could not be loaded: ${esc(state.rosterStudentErrors.get(rosterId))}</div>`;
+    }
+    if (!state.rosterStudents.has(rosterId)) {
+      return '<p class="muted">Roster details have not been loaded.</p>';
+    }
+    const students = state.rosterStudents.get(rosterId);
+    if (!students.length) {
+      return '<p class="muted">No active students were found for this roster.</p>';
+    }
+    const rows = students.map(student => {
+      const warnings = student.duplicate_student_ind === "Y"
+        ? '<span class="issue-pill">Duplicate roster row</span>'
+        : '<span class="muted">None found</span>';
+      return `<tr>
+        <td>${esc(student.student_name || "Name unavailable")}</td>
+        <td class="technical">${esc(student.student_id || "Unavailable")}</td>
+        <td class="${student.grade_value ? "student-grade" : "student-no"}">${esc(student.grade_value || "—")}</td>
+        <td class="${student.expected_graduate_ind === "Y" ? "student-yes" : ""}">${yesNo(student.expected_graduate_ind)}</td>
+        <td>${warnings}</td>
+      </tr>`;
+    }).join("");
+    return `<div class="roster-student-heading">
+      <h3>Full roster</h3>
+      <span class="result-count">${students.length} student${students.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="table-wrap roster-student-table-wrap"><table class="roster-student-table">
+      <thead><tr><th>Student</th><th>Eagle ID</th><th>Grade</th><th>Expected graduate</th><th>Warnings</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  }
+
+  async function loadRosterStudents(row) {
+    const rosterId = row.roster_id;
+    if (state.rosterStudents.has(rosterId) || state.rosterStudentLoading.has(rosterId)) return;
+    state.rosterStudentLoading.add(rosterId);
+    state.rosterStudentErrors.delete(rosterId);
+    render();
+    try {
+      const termCode = window.dashboardConfig.selectedTerm;
+      const url = `/api/rosters/${encodeURIComponent(rosterId)}/students?term_code=${encodeURIComponent(termCode)}`;
+      const response = await fetch(url, { headers: { "Accept": "application/json" } });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || `Request failed (${response.status})`);
+      state.rosterStudents.set(rosterId, Array.isArray(payload.students) ? payload.students : []);
+    } catch (error) {
+      state.rosterStudentErrors.set(rosterId, error.message || "Unknown error");
+    } finally {
+      state.rosterStudentLoading.delete(rosterId);
+      render();
+    }
   }
 
   function rowMarkup(row) {
@@ -97,7 +170,7 @@
       <div><strong>Roster graduate flag</strong><div>${number(row.has_grad_seniors_ind) ? "Yes" : "No"}</div></div>
       <div><strong>Source discrepancy</strong><div>${row.expected_graduating_discrepancy_ind === "Y" ? "Yes — roster flag is set but the calculated count is zero" : "No"}</div></div>
       <div><strong>Subterm code</strong><div>${esc(row.subterm_code)}</div></div>
-    </div></td></tr>` : ""}`;
+    </div><div class="roster-student-section">${rosterStudentMarkup(row)}</div></td></tr>` : ""}`;
   }
 
   function updateMetrics() {
@@ -142,7 +215,19 @@
   document.addEventListener("input", event => { if (event.target.matches("#subterm_code,#global-search,#status-filter,#problem-filter,.column-filter")) render(); });
   document.addEventListener("click", event => {
     const detail = event.target.closest(".detail-toggle");
-    if (detail) { const id = detail.dataset.rosterId; state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id); render(); return; }
+    if (detail) {
+      const id = detail.dataset.rosterId;
+      if (state.expanded.has(id)) {
+        state.expanded.delete(id);
+        render();
+      } else {
+        const row = state.rows.find(item => item.roster_id === id);
+        state.expanded.add(id);
+        render();
+        if (row) loadRosterStudents(row);
+      }
+      return;
+    }
     const sort = event.target.closest(".sort-button");
     if (sort) { const field = sort.dataset.sort; state.sortDirection = state.sortField === field && state.sortDirection === "asc" ? "desc" : "asc"; state.sortField = field; document.querySelectorAll(".sort-button").forEach(b => b.classList.remove("sort-asc","sort-desc")); sort.classList.add(state.sortDirection === "asc" ? "sort-asc" : "sort-desc"); render(); return; }
     const tab = event.target.closest(".tab-button[data-tab]");

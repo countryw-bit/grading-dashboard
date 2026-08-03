@@ -2,7 +2,7 @@ import json
 from urllib.parse import quote_plus
 
 import oracledb
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -153,6 +153,44 @@ def logout(request: Request):
     response.delete_cookie(COOKIE_NAME)
 
     return response
+
+
+@app.get("/api/rosters/{roster_id}/students")
+def roster_students(
+    request: Request,
+    roster_id: str,
+    term_code: str,
+):
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        students = fetch_all(
+            session.username,
+            session.password,
+            load_sql("roster_students.sql"),
+            {
+                "roster_id": roster_id,
+                "term_code": term_code.upper(),
+            },
+        )
+
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    return {
+        "roster_id": roster_id,
+        "student_count": len(students),
+        "students": students,
+    }
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

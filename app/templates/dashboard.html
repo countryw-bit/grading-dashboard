@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}?v=7">{% endblock %}
 {% block content %}
 <section class="card hero-card">
   <div>
@@ -45,7 +45,7 @@
     <div class="toolbar">
       <input id="global-search" class="search" type="search" placeholder="Search course, instructor, email, ID, roster ID, section ID, or subterm">
       <select id="status-filter"><option value="">All statuses</option><option value="SUBMITTED">Submitted</option><option value="PARTIAL">In progress</option><option value="NOT_STARTED">Not started</option></select>
-      <select id="problem-filter"><option value="">All records</option><option value="problems">Problems only</option><option value="duplicate-roster">Duplicate roster</option><option value="duplicate-student">Duplicate student</option><option value="overdue">Overdue only</option><option value="zero">Zero-student rosters</option><option value="missing-grader">Missing instructor</option><option value="missing-email">Missing instructor email</option><option value="expected-grad-discrepancy">Expected-graduate discrepancy</option></select>
+      <select id="problem-filter"><option value="">All records</option><option value="problems">Problems only</option><option value="expected-grad-ungraded">Expected graduates ungraded</option><option value="duplicate-roster">Duplicate roster</option><option value="duplicate-student">Duplicate student</option><option value="overdue">Overdue only</option><option value="zero">Zero-student rosters</option><option value="missing-grader">Missing instructor</option><option value="missing-email">Missing instructor email</option><option value="expected-grad-discrepancy">Expected-graduate discrepancy</option></select>
       <button type="button" id="clear-filters" class="button-secondary">Clear filters</button>
       <button type="button" id="download-csv">Download visible CSV</button>
     </div>
@@ -83,4 +83,4 @@
 <script id="roster-data" type="application/json">{{ sections_json | safe }}</script>
 <script>window.dashboardConfig = { selectedTerm: {{ selected_term | tojson }} };</script>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='/js/dashboard.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/js/dashboard.js') }}?v=7" defer></script>{% endblock %}
