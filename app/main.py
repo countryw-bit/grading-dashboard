@@ -193,6 +193,166 @@ def roster_students(
     }
 
 
+@app.get("/api/grade-posting")
+def grade_posting_check(
+    request: Request,
+    term_code: str,
+):
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        results = fetch_all(
+            session.username,
+            session.password,
+            load_sql("grade_posting_check.sql"),
+            {"term_code": term_code.upper()},
+        )
+
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    exception_statuses = {
+        "GRADE_NOT_POSTED",
+        "GRADE_MISMATCH",
+        "ACTIVE_RECORD_REVIEW",
+        "MISSING_ACADEMIC_RECORD",
+    }
+
+    return {
+        "term_code": term_code.upper(),
+        "result_count": len(results),
+        "exception_count": sum(
+            1
+            for row in results
+            if row.get("posting_status") in exception_statuses
+        ),
+        "results": results,
+    }
+
+
+@app.get("/api/roster-population")
+def roster_population_check(
+    request: Request,
+    term_code: str,
+):
+    """Compare exact-section active registrations with grading-roster students."""
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        results = fetch_all(
+            session.username,
+            session.password,
+            load_sql("roster_population_summary.sql"),
+            {"term_code": term_code.upper()},
+        )
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    return {
+        "term_code": term_code.upper(),
+        "result_count": len(results),
+        "discrepancy_count": sum(
+            1 for row in results if row.get("discrepancy_type") != "MATCH"
+        ),
+        "registration_source": "ROSTER_ROW_REGISTRATION_CROSSWALK",
+        "results": results,
+    }
+
+
+@app.get("/api/roster-population/students")
+def roster_population_students(
+    request: Request,
+    term_code: str,
+    activity_offering_id: str,
+    roster_type: str,
+):
+    """Load student-level population differences only when a section is opened."""
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        results = fetch_all(
+            session.username,
+            session.password,
+            load_sql("roster_population_students.sql"),
+            {
+                "term_code": term_code.upper(),
+                "activity_offering_id": activity_offering_id,
+                "roster_type": roster_type,
+            },
+        )
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    return {
+        "term_code": term_code.upper(),
+        "activity_offering_id": activity_offering_id,
+        "roster_type": roster_type,
+        "student_count": len(results),
+        "students": results,
+    }
+
+
+@app.get("/api/roster-replacement-audit")
+def roster_replacement_audit(
+    request: Request,
+    term_code: str,
+):
+    """Return stranded active registrations on historical/removed roster rows."""
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        results = fetch_all(
+            session.username,
+            session.password,
+            load_sql("roster_replacement_audit.sql"),
+            {"term_code": term_code.upper()},
+        )
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    return {
+        "term_code": term_code.upper(),
+        "result_count": len(results),
+        "results": results,
+    }
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(
     request: Request,

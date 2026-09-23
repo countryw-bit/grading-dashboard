@@ -24,6 +24,18 @@
 .toolbar { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
 .toolbar input, .toolbar select { min-width: 180px; }
 .toolbar .search { flex: 1; min-width: 290px; }
+.posting-checker { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; margin: 1rem 0 .25rem; padding: .8rem; border: 1px solid var(--bc-border); border-left: 4px solid var(--bc-gold); border-radius: 8px; background: #fcfaf7; }
+.posting-check-status { font-weight: 600; }
+.coverage-note { margin: .75rem 0 1rem; padding: .75rem 1rem; border: 1px solid #d7c6ad; border-radius: 8px; background: #fffaf0; color: var(--bc-ink); }
+.population-metrics { grid-template-columns: repeat(auto-fit,minmax(175px,1fr)); margin: 1rem 0; }
+.population-metrics .metric { min-height: 108px; padding: .85rem; }
+.population-metrics .metric strong { font-size: 1.65rem; }
+.population-table { min-width: 1500px; }
+.population-table th { position: sticky; top: 0; z-index: 2; }
+.population-status { display: inline-block; font-weight: 800; }
+.population-ok { color: var(--success); }
+.population-review { color: var(--warning); }
+.population-high { color: var(--danger); }
 .table-wrap { max-height: 640px; overflow: auto; border: 1px solid var(--bc-border); border-radius: 8px; }
 .sections-table { min-width: 1220px; }
 .sections-table th { position: sticky; top: 0; z-index: 3; }
@@ -54,6 +66,10 @@
 .student-yes { color: var(--success); font-weight: 800; }
 .student-grade { color: var(--bc-maroon-dark); font-weight: 800; }
 .student-no { color: var(--muted); }
+.posting-good { color: var(--success); font-weight: 700; }
+.posting-info { color: var(--bc-maroon); font-weight: 700; }
+.posting-exception { color: var(--danger); font-weight: 800; }
+.posting-muted { color: var(--bc-muted); }
 .technical { font-family: Consolas, "Courier New", monospace; font-size: .8rem; overflow-wrap: anywhere; }
 .health-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 1rem; }
 .health-item { border: 1px solid var(--bc-border); border-top: 3px solid var(--bc-gold); border-radius: 8px; padding: 1rem; background: #fff; }
