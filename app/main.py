@@ -319,6 +319,40 @@ def roster_population_students(
     }
 
 
+@app.get("/api/roster-population/student-export")
+def roster_population_student_export(
+    request: Request,
+    term_code: str,
+):
+    """Load all term-level student discrepancies in one database request."""
+    session = current_session(request)
+
+    if not session:
+        raise HTTPException(
+            status_code=401,
+            detail="Your local session expired. Please sign in again.",
+        )
+
+    try:
+        results = fetch_all(
+            session.username,
+            session.password,
+            load_sql("roster_population_student_export.sql"),
+            {"term_code": term_code.upper()},
+        )
+    except (oracledb.Error, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc).splitlines()[0],
+        ) from exc
+
+    return {
+        "term_code": term_code.upper(),
+        "result_count": len(results),
+        "results": results,
+    }
+
+
 @app.get("/api/roster-replacement-audit")
 def roster_replacement_audit(
     request: Request,

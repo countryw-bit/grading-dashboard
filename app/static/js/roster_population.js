@@ -126,12 +126,16 @@
   }
   async function downloadStudents() {
     if (!state.loaded) return;
-    const button=document.getElementById("download-population-students-csv"), original=button.textContent; button.disabled=true; button.textContent="Loading students…";
+    const button=document.getElementById("download-population-students-csv"), original=button.textContent; button.disabled=true; button.textContent="Preparing CSV…";
     try {
-      const target=state.filtered.filter(isDiscrepancy); for (const row of target) await loadStudents(row);
-      const rows=[]; target.forEach(row=>(state.students.get(key(row))||[]).filter(s=>s.student_discrepancy_type!=="MATCHED").forEach(s=>rows.push([row.subterm_code,row.course_code,row.activity_offering_id,row.roster_type,s.student_name,s.student_id,s.registration_id,s.registration_state,s.registration_eff_dt,s.registration_exp_dt,s.roster_id,s.roster_state,s.roster_row_id,s.roster_row_state,s.on_registration_roster,s.on_grading_roster,s.student_discrepancy_type,s.historical_roster_ids,s.historical_roster_states,s.historical_row_states])));
+      const response=await fetch(`/api/roster-population/student-export?term_code=${encodeURIComponent(window.dashboardConfig.selectedTerm)}`,{headers:{Accept:"application/json"}}),payload=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(payload.detail||`Request failed (${response.status})`);
+      const allowed=new Set(state.filtered.filter(isDiscrepancy).map(key));
+      const records=(Array.isArray(payload.results)?payload.results:[]).filter(s=>allowed.has(`${s.activity_offering_id}::${s.roster_type}`));
+      const rows=records.map(s=>[s.subterm_code,s.course_code,s.activity_offering_id,s.roster_type,s.student_name,s.student_id,s.registration_id,s.registration_state,s.registration_eff_dt,s.registration_exp_dt,s.roster_id,s.roster_state,s.roster_row_id,s.roster_row_state,s.on_registration_roster,s.on_grading_roster,s.student_discrepancy_type,s.historical_roster_ids,s.historical_roster_states,s.historical_row_states]);
       saveCsv(`registration_vs_grading_students_${window.dashboardConfig.selectedTerm}.csv`,["Subterm","Course","Activity offering ID","Roster type","Student","Eagle ID","Registration ID","Registration state","Registration effective","Registration expiration","Roster ID","Roster state","Roster row ID","Roster row state","On registration roster","On grading roster","Discrepancy","Historical roster IDs","Historical roster states","Historical row states"],rows);
-    } finally { button.disabled=false; button.textContent=original; }
+    } catch(error) { window.alert(`Student export failed: ${error.message||"Unknown error"}`); }
+    finally { button.disabled=false; button.textContent=original; }
   }
   async function downloadAudit() {
     const button=document.getElementById("download-roster-audit-csv"), original=button.textContent; button.disabled=true; button.textContent="Loading audit…";

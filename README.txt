@@ -1,4 +1,4 @@
-EAGLEAPPS GRADING DASHBOARD UPDATE - VERSION 9
+EAGLEAPPS GRADING DASHBOARD UPDATE - VERSION 10
 
 These are complete replacement files. Copy them over the matching paths in
 the EagleApps grading dashboard project:
@@ -13,7 +13,17 @@ the EagleApps grading dashboard project:
   sql/roster_students.sql
   sql/roster_population_summary.sql
   sql/roster_population_students.sql
+  sql/roster_population_student_export.sql
   sql/roster_replacement_audit.sql
+
+Version 10 student-export performance update
+--------------------------------------------
+The Student discrepancy CSV now uses one term-scoped Oracle/API request. The
+version 9 implementation opened every visible section sequentially, which
+could create thousands of requests and browser table renders for Fall 2026.
+Version 10 loads the term's discrepancy students once, applies the currently
+visible activity-offering and roster-type filters in the browser, and creates
+the CSV without expanding or re-rendering each section.
 
 Registration vs. grading-roster checker
 ---------------------------------------

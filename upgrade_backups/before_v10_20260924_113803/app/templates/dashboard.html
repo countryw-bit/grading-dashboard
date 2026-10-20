@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}?v=9">{% endblock %}
+{% block content %}
+<section class="card hero-card">
+  <div>
+    <p class="eyebrow">Registrar operations</p>
+    <h1>Grading Health</h1>
+    <p class="muted">Review grading progress, filter the full term instantly, and identify records requiring attention.</p>
+  </div>
+  {% if term_error %}<div class="error">Terms could not be loaded: {{ term_error }}</div>{% endif %}
+  {% if subterm_error %}<div class="error">Subterms could not be loaded: {{ subterm_error }}</div>{% endif %}
+  {% if summary_error %}<div class="error">Grading records could not be loaded: {{ summary_error }}</div>{% endif %}
+  {% if duplicate_roster_error %}<div class="error">Duplicate rosters could not be checked: {{ duplicate_roster_error }}</div>{% endif %}
+  {% if duplicate_row_error %}<div class="error">Duplicate student rows could not be checked: {{ duplicate_row_error }}</div>{% endif %}
+  <form method="get" action="/dashboard" class="term-controls">
+    <div><label for="term_code">Term</label><select id="term_code" name="term_code" required onchange="this.form.submit()">{% for term in terms %}<option value="{{ term.term_code }}" {% if term.term_code == selected_term %}selected{% endif %}>{{ term.term_name }}</option>{% endfor %}</select></div>
+    <div><label for="subterm_code">Subterm <span class="muted">(optional)</span></label><select id="subterm_code"><option value="">All subterms</option>{% for subterm in subterms %}<option value="{{ subterm.subterm_code }}">{{ subterm.subterm_name }} — {{ subterm.subterm_code }}</option>{% endfor %}</select></div>
+    <button type="submit">Refresh term</button>
+  </form>
+</section>
+
+<section class="grid metrics-grid" aria-label="Grading totals">
+  <button class="card metric metric-filter" data-status="" type="button"><span class="metric-label">Rosters reviewed</span><strong id="metric-rosters">0</strong><span id="metric-unique-sections" class="metric-note">0 unique sections</span></button>
+  <button class="card metric metric-filter" data-status="SUBMITTED" type="button"><span class="metric-label">Grades submitted</span><strong id="metric-submitted">0</strong><span id="metric-submitted-rate" class="metric-note">0% of visible rosters</span></button>
+  <button class="card metric metric-filter" data-status="PARTIAL" type="button"><span class="metric-label">In progress</span><strong id="metric-partial">0</strong></button>
+  <button class="card metric metric-filter" data-status="NOT_STARTED" type="button"><span class="metric-label">Not started</span><strong id="metric-not-started">0</strong></button>
+  <button class="card metric metric-filter" data-problem="duplicate-roster" type="button"><span class="metric-label">Duplicate rosters</span><strong id="metric-duplicate-rosters">0</strong><span class="metric-note">visible roster records</span></button>
+  <button class="card metric metric-filter" data-problem="duplicate-student" type="button"><span class="metric-label">Duplicate students</span><strong id="metric-duplicate-students">0</strong><span class="metric-note">visible roster records</span></button>
+  <button class="card metric metric-filter" data-problem="grade-posting-exception" type="button"><span class="metric-label">Grade posting exceptions</span><strong id="metric-posting-exceptions">—</strong><span class="metric-note">run the checker to calculate</span></button>
+</section>
+
+<section class="card completion-card">
+  <div class="completion-heading"><strong>Overall completion</strong><span id="completion-label">0 of 0 rosters submitted</span></div>
+  <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="completion-bar" class="progress-fill"></div></div>
+</section>
+
+<section class="card workspace-card">
+  <nav class="tabs" aria-label="Dashboard sections">
+    <button type="button" class="tab-button active" data-tab="sections-panel">Rosters</button>
+    <button type="button" class="tab-button" data-tab="population-panel">Registration vs. grading</button>
+    <button type="button" class="tab-button" data-tab="health-panel">Data integrity</button>
+    <button type="button" class="tab-button" data-tab="duplicates-panel">Duplicate details</button>
+  </nav>
+
+  <section id="sections-panel" class="tab-panel active">
+    <div class="section-heading"><div><h2>Rosters</h2><p class="muted">Search, sort, filter, inspect details, and export the visible records.</p></div><span id="visible-count" class="result-count"></span></div>
+    <div class="posting-checker"><button type="button" id="run-posting-check">Run grade posting checker</button><span id="posting-check-status" class="muted posting-check-status">Runs separately from the term load and compares submitted grades with the academic record.</span></div>
+    <div class="toolbar">
+      <input id="global-search" class="search" type="search" placeholder="Search course, instructor, email, ID, roster ID, section ID, or subterm">
+      <select id="status-filter"><option value="">All statuses</option><option value="SUBMITTED">Submitted</option><option value="PARTIAL">In progress</option><option value="NOT_STARTED">Not started</option></select>
+      <select id="problem-filter"><option value="">All records</option><option value="problems">Problems only</option><option value="grade-posting-exception">Grade posting exception</option><option value="posted-via-duplicate">Grade posted through alternate registration</option><option value="expected-grad-ungraded">Expected graduates ungraded</option><option value="duplicate-roster">Duplicate roster</option><option value="duplicate-student">Duplicate student</option><option value="overdue">Overdue only</option><option value="zero">Zero-student rosters</option><option value="missing-grader">Missing instructor</option><option value="missing-email">Missing instructor email</option><option value="expected-grad-discrepancy">Expected-graduate discrepancy</option></select>
+      <button type="button" id="clear-filters" class="button-secondary">Clear filters</button>
+      <button type="button" id="download-csv">Download visible CSV</button>
+    </div>
+    <div class="table-wrap"><table id="sections-table" class="sections-table"><thead><tr>
+      <th><button class="sort-button" data-sort="course_name">Course / roster</button><input class="column-filter" data-field="course_name" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="subterm_name">Subterm</button><input class="column-filter" data-field="subterm_name" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="instructor_names">Instructor</button><input class="column-filter" data-field="instructor_names" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="instructor_emails">Email</button><input class="column-filter" data-field="instructor_emails" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="roster_size">Roster size</button><input class="column-filter" data-field="roster_size" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="graded_count">Graded</button><input class="column-filter" data-field="graded_count" placeholder="Filter"></th>
+      <th title="Students whose current active status or eligible graduate-discipline status has an expected-completion term matching the selected term. Shows graded / expected."><button class="sort-button" data-sort="expected_graduating_student_count">Expected Graduates</button><input class="column-filter" data-field="expected_graduating_display" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="overall_status">Status</button><input class="column-filter" data-field="overall_status" placeholder="Filter"></th>
+      <th><button class="sort-button" data-sort="due_dt">Due date</button><input class="column-filter" data-field="due_dt" placeholder="Filter"></th>
+      <th>Problems<input class="column-filter" data-field="problem_text" placeholder="Filter"></th>
+      <th>Details</th>
+    </tr></thead><tbody id="sections-body"></tbody></table></div>
+  </section>
+
+  <section id="population-panel" class="tab-panel">
+    <div class="section-heading"><div><h2>Registration vs. grading rosters</h2><p class="muted">Compare distinct active registrations with students on each current grading workflow for the exact activity offering.</p></div><span id="population-visible-count" class="result-count"></span></div>
+    <div class="posting-checker">
+      <button type="button" id="run-population-check">Run roster population checker</button>
+      <span id="population-check-status" class="muted posting-check-status">Runs on demand. Student details load only when a section is opened.</span>
+    </div>
+    <div class="coverage-note"><strong>Current mapping coverage:</strong> exact activity offerings resolved through current and historical roster rows. The checker never matches sections by course code. Active registrations that have never appeared on any roster require separate registration-group mapping verification.</div>
+    <div class="grid population-metrics" aria-label="Roster population totals">
+      <button type="button" class="card metric population-metric" data-population-type=""><span class="metric-label">Sections/workflows reviewed</span><strong id="population-reviewed">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="ANY"><span class="metric-label">With discrepancies</span><strong id="population-discrepancies">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="REGISTRATION_GREATER"><span class="metric-label">Registration greater</span><strong id="population-reg-greater">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="GRADING_GREATER"><span class="metric-label">Grading greater</span><strong id="population-grade-greater">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="COUNTS_MATCH_STUDENTS_DIFFER"><span class="metric-label">Equal counts, different students</span><strong id="population-different">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="NO_CURRENT_GRADING_ROSTER"><span class="metric-label">No current grading roster</span><strong id="population-no-roster">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="MULTIPLE_CURRENT_ROSTERS"><span class="metric-label">Multiple current rosters</span><strong id="population-multiple">—</strong></button>
+      <button type="button" class="card metric population-metric" data-population-type="STRANDED"><span class="metric-label">Stranded active students</span><strong id="population-stranded">—</strong></button>
+      <div class="card metric"><span class="metric-label">Students missing from grading</span><strong id="population-missing-students">—</strong></div>
+      <div class="card metric"><span class="metric-label">Grading students not active</span><strong id="population-not-active-students">—</strong></div>
+    </div>
+    <div class="toolbar">
+      <input id="population-search" class="search" type="search" placeholder="Search course, section ID, roster ID, type, or subterm">
+      <select id="population-type-filter"><option value="">All comparison results</option><option value="ANY">Discrepancies only</option><option value="MATCH">Matches</option><option value="REGISTRATION_GREATER">Registration greater</option><option value="GRADING_GREATER">Grading greater</option><option value="COUNTS_MATCH_STUDENTS_DIFFER">Equal counts, students differ</option><option value="NO_CURRENT_GRADING_ROSTER">No current grading roster</option><option value="MULTIPLE_CURRENT_ROSTERS">Multiple current rosters</option><option value="ACTIVE_STUDENTS_ON_ABANDONED_ROSTER">Active students on abandoned roster</option><option value="MIXED_DISCREPANCY">Mixed discrepancy</option><option value="STRANDED">Any stranded active students</option></select>
+      <select id="population-roster-type-filter"><option value="">All roster types</option></select>
+      <button type="button" id="clear-population-filters" class="button-secondary">Clear filters</button>
+      <button type="button" id="download-population-csv">Section CSV</button>
+      <button type="button" id="download-population-students-csv">Student discrepancy CSV</button>
+      <button type="button" id="download-roster-audit-csv">Replacement audit CSV</button>
+    </div>
+    <div class="table-wrap"><table class="population-table"><thead><tr>
+      <th>Course / roster</th><th>Subterm</th><th>Registration</th><th>Grading</th><th>Missing from grading</th><th>Not active</th><th>Matched</th><th>Current rosters</th><th>Abandoned</th><th>Roster type</th><th>Result</th><th>Details</th>
+    </tr></thead><tbody id="population-body"><tr><td colspan="12" class="empty-state">Run the roster population checker to load results.</td></tr></tbody></table></div>
+  </section>
+
+  <section id="health-panel" class="tab-panel"><h2>Data integrity</h2><p class="muted">Counts update with the current subterm and table filters.</p><div class="health-list">
+    <div class="health-item"><span>Duplicate roster records</span><strong id="health-duplicate-rosters">0</strong></div>
+    <div class="health-item"><span>Duplicate student records</span><strong id="health-duplicate-students">0</strong></div>
+    <div class="health-item"><span>Overdue and not submitted</span><strong id="health-overdue">0</strong></div>
+    <div class="health-item"><span>Rosters with zero students</span><strong id="health-zero">0</strong></div>
+    <div class="health-item"><span>Rosters without instructors</span><strong id="health-missing-graders">0</strong></div>
+    <div class="health-item"><span>Rosters with missing instructor email</span><strong id="health-missing-emails">0</strong></div>
+    <div class="health-item"><span>Expected-graduate source discrepancies</span><strong id="health-expected-grad-discrepancies">0</strong></div>
+    <div class="health-item"><span>Grade posting exceptions</span><strong id="health-posting-exceptions">Not run</strong></div>
+    <div class="health-item"><span>Posted through alternate registration</span><strong id="health-posted-via-duplicate">Not run</strong></div>
+    <div class="health-item"><span>Unique sections</span><strong id="health-unique-sections">0</strong></div>
+  </div></section>
+
+  <section id="duplicates-panel" class="tab-panel"><h2>Duplicate details</h2>
+    <details {% if duplicate_rosters %}open{% endif %}><summary>Duplicate rosters ({{ totals.duplicate_roster_groups }})</summary><div class="table-wrap"><table><thead><tr><th>Subterm</th><th>Section ID</th><th>Roster type</th><th>Count</th><th>Roster IDs</th></tr></thead><tbody>{% for row in duplicate_rosters %}<tr><td>{{ row.subterm_name or row.subterm_code }}</td><td class="technical">{{ row.activity_offering_id }}</td><td>{{ row.roster_type }}</td><td>{{ row.roster_count }}</td><td class="technical">{{ row.roster_ids }}</td></tr>{% else %}<tr><td colspan="5">No duplicate rosters found.</td></tr>{% endfor %}</tbody></table></div></details>
+    <details {% if duplicate_rows %}open{% endif %}><summary>Students listed more than once ({{ totals.duplicate_students }})</summary><div class="table-wrap"><table><thead><tr><th>Subterm</th><th>Course / roster</th><th>Eagle ID</th><th>Issue source</th><th>Times listed</th><th>Grade values</th><th>Record states</th><th>Internal registration ID</th><th>Source record IDs</th></tr></thead><tbody>{% for row in duplicate_rows %}<tr><td>{{ row.subterm_name or row.subterm_code }}</td><td>{{ row.roster_name or row.roster_id or 'Unmapped course' }}{% if row.roster_id %}<div class="technical">{{ row.roster_id }}</div>{% endif %}</td><td><strong>{{ row.student_id }}</strong></td><td>{{ row.duplicate_source or 'ROSTER ROW' }}</td><td>{{ row.row_count }}</td><td>{{ row.grade_values or '—' }}</td><td class="technical">{{ row.roster_row_states or '—' }}</td><td class="technical">{{ row.person_id or '—' }}</td><td class="technical">{{ row.roster_row_ids }}</td></tr>{% else %}<tr><td colspan="9">No duplicate students found.</td></tr>{% endfor %}</tbody></table></div></details>
+  </section>
+</section>
+<script id="roster-data" type="application/json">{{ sections_json | safe }}</script>
+<script>window.dashboardConfig = { selectedTerm: {{ selected_term | tojson }} };</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/js/dashboard.js') }}?v=9" defer></script><script src="{{ url_for('static', path='/js/roster_population.js') }}?v=9" defer></script>{% endblock %}
